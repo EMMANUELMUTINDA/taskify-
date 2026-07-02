@@ -1,5 +1,6 @@
 const express = require('express');
 const cors = require('cors');
+const helmet = require('helmet');
 require('dotenv').config();
 const { testDatabaseConnection } = require('./config/db');
 const {
@@ -17,14 +18,30 @@ const usersRoutes = require('./routes/users.routes');
 const reviewsRoutes = require('./routes/reviews.routes');
 const alertsRoutes = require('./routes/alerts.routes');
 const collabRoutes = require('./routes/collab.routes');
+const { authRateLimit } = require('./middleware/rateLimit.middleware');
 
 const app = express();
 
-app.use(cors());
-app.use(express.json());
-app.use('/uploads', express.static('uploads'));
+const allowedOrigins = String(process.env.CORS_ORIGIN || '')
+  .split(',')
+  .map((origin) => origin.trim())
+  .filter(Boolean);
 
-app.use('/api/auth', authRoutes);
+app.use(
+  cors({
+    origin(origin, callback) {
+      if (!origin || allowedOrigins.length === 0 || allowedOrigins.includes(origin)) {
+        return callback(null, true);
+      }
+
+      return callback(new Error('Origin not allowed by CORS policy'));
+    },
+  })
+);
+app.use(helmet());
+app.use(express.json({ limit: '1mb' }));
+
+app.use('/api/auth', authRateLimit, authRoutes);
 app.use('/api/projects', authenticateToken, projectRoutes);
 app.use('/api/tasks', authenticateToken, taskRoutes);
 app.use('/api/analytics', authenticateToken, analyticsRoutes);
@@ -42,6 +59,17 @@ const PORT = process.env.PORT || 5000;
 
 const startServer = async () => {
   try {
+    if (!process.env.JWT_SECRET) {
+      throw new Error('JWT_SECRET is missing. Configure a strong secret in server/.env before starting the server.');
+    }
+
+    if (
+      process.env.NODE_ENV === 'production' &&
+      process.env.JWT_SECRET === 'taskify_secret_key_2025'
+    ) {
+      throw new Error('JWT_SECRET uses an insecure default value. Set a strong random secret for production.');
+    }
+
     await testDatabaseConnection();
     await normalizeLegacyRoles();
     await ensureDefaultSupervisor();

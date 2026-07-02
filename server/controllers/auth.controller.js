@@ -80,12 +80,13 @@ const sendPasswordResetEmail = async ({ email, name, token }) => {
 const register = async (req, res) => {
   try {
     const { name, email, password } = req.body;
+    const normalizedEmail = normalizeEmail(email);
 
     if (!name || !email || !password) {
       return res.status(400).json({ message: 'name, email, and password are required' });
     }
 
-    if (!EMAIL_REGEX.test(String(email).trim())) {
+    if (!EMAIL_REGEX.test(normalizedEmail)) {
       return res.status(400).json({ message: 'Please provide a valid email address' });
     }
 
@@ -97,14 +98,18 @@ const register = async (req, res) => {
 
     const [existing] = await pool.query(
       `SELECT userID FROM users WHERE email = ? LIMIT 1`,
-      [email]
+      [normalizedEmail]
     );
 
     if (existing.length > 0) {
       return res.status(409).json({ message: 'Email is already registered' });
     }
 
-    const requestedRole = isSupervisorEmail(email) ? 'Supervisor' : isStudentEmail(email) ? 'Member' : null;
+    const requestedRole = isSupervisorEmail(normalizedEmail)
+      ? 'Supervisor'
+      : isStudentEmail(normalizedEmail)
+      ? 'Member'
+      : null;
 
     if (!requestedRole) {
       return res.status(400).json({
@@ -118,7 +123,7 @@ const register = async (req, res) => {
     const [result] = await pool.query(
       `INSERT INTO users (name, email, passwordHash, role, isActive)
        VALUES (?, ?, ?, ?, 1)`,
-      [name, email, passwordHash, requestedRole]
+      [name, normalizedEmail, passwordHash, requestedRole]
     );
 
     return res.status(201).json({
@@ -126,18 +131,19 @@ const register = async (req, res) => {
       user: {
         userID: Number(result.insertId),
         name,
-        email,
+        email: normalizedEmail,
         role: requestedRole,
       },
     });
   } catch (error) {
-    return res.status(500).json({ message: 'Failed to create account', error: error.message });
+    return res.status(500).json({ message: 'Failed to create account' });
   }
 };
 
 const login = async (req, res) => {
   try {
     const { email, password } = req.body;
+    const normalizedEmail = normalizeEmail(email);
 
     if (!email || !password) {
       return res.status(400).json({ message: 'email and password are required' });
@@ -148,7 +154,7 @@ const login = async (req, res) => {
        FROM users
        WHERE email = ?
        LIMIT 1`,
-      [email]
+      [normalizedEmail]
     );
 
     if (rows.length === 0) {
@@ -199,7 +205,7 @@ const login = async (req, res) => {
       },
     });
   } catch (error) {
-    return res.status(500).json({ message: 'Failed to authenticate user', error: error.message });
+    return res.status(500).json({ message: 'Failed to authenticate user' });
   }
 };
 
@@ -238,13 +244,13 @@ const me = async (req, res) => {
       },
     });
   } catch (error) {
-    return res.status(500).json({ message: 'Failed to load user profile', error: error.message });
+    return res.status(500).json({ message: 'Failed to load user profile' });
   }
 };
 
 const requestPasswordReset = async (req, res) => {
   try {
-    const email = String(req.body.email || '').trim();
+    const email = normalizeEmail(req.body.email);
 
     if (!EMAIL_REGEX.test(email)) {
       return res.status(400).json({ message: 'Please provide a valid email address' });
@@ -298,7 +304,7 @@ const requestPasswordReset = async (req, res) => {
       expiresInMinutes: 30,
     });
   } catch (error) {
-    return res.status(500).json({ message: 'Failed to create reset token', error: error.message });
+    return res.status(500).json({ message: 'Failed to create reset token' });
   }
 };
 
@@ -343,7 +349,7 @@ const resetPassword = async (req, res) => {
 
     return res.json({ message: 'Password reset successful. You can now sign in.' });
   } catch (error) {
-    return res.status(500).json({ message: 'Failed to reset password', error: error.message });
+    return res.status(500).json({ message: 'Failed to reset password' });
   }
 };
 

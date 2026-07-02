@@ -27,12 +27,13 @@ const isSupervisorEmail = (email) => {
 const registerUser = async (req, res) => {
   try {
     const { name, email, password, role } = req.body;
+    const normalizedEmail = normalizeEmail(email);
 
     if (!name || !email || !password || !role) {
       return res.status(400).json({ message: 'name, email, password, and role are required' });
     }
 
-    if (!EMAIL_REGEX.test(String(email).trim())) {
+    if (!EMAIL_REGEX.test(normalizedEmail)) {
       return res.status(400).json({ message: 'Please provide a valid email address' });
     }
 
@@ -47,14 +48,14 @@ const registerUser = async (req, res) => {
       return res.status(400).json({ message: 'Invalid role provided' });
     }
 
-    if (role === 'Supervisor' && !isSupervisorEmail(email)) {
+    if (role === 'Supervisor' && !isSupervisorEmail(normalizedEmail)) {
       return res.status(400).json({
         message:
           'Supervisor email must use the Strathmore supervisor format (no dot in local part), for example bmonda@strathmore.edu',
       });
     }
 
-    if ((role === 'Member' || role === 'GroupLeader') && !isStudentEmail(email)) {
+    if ((role === 'Member' || role === 'GroupLeader') && !isStudentEmail(normalizedEmail)) {
       return res.status(400).json({
         message:
           'Student email must use the Strathmore student format (first.second@strathmore.edu), for example emmanuel.mutinda@strathmore.edu',
@@ -63,7 +64,7 @@ const registerUser = async (req, res) => {
 
     const [existing] = await pool.query(
       `SELECT userID FROM users WHERE email = ? LIMIT 1`,
-      [email]
+      [normalizedEmail]
     );
 
     if (existing.length > 0) {
@@ -75,12 +76,12 @@ const registerUser = async (req, res) => {
     const [result] = await pool.query(
       `INSERT INTO users (name, email, passwordHash, role)
        VALUES (?, ?, ?, ?)`,
-      [name, email, passwordHash, role]
+      [name, normalizedEmail, passwordHash, role]
     );
 
     return res.status(201).json({ userID: result.insertId, message: 'User registered successfully' });
-  } catch (error) {
-    return res.status(500).json({ message: 'Failed to register user', error: error.message });
+  } catch (_error) {
+    return res.status(500).json({ message: 'Failed to register user' });
   }
 };
 
@@ -94,8 +95,8 @@ const listUsers = async (_req, res) => {
     );
 
     return res.json(rows);
-  } catch (error) {
-    return res.status(500).json({ message: 'Failed to load users', error: error.message });
+  } catch (_error) {
+    return res.status(500).json({ message: 'Failed to load users' });
   }
 };
 
