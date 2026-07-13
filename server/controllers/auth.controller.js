@@ -307,6 +307,7 @@ const me = async (req, res) => {
 
 const requestPasswordReset = async (req, res) => {
   try {
+    const isProduction = process.env.NODE_ENV === 'production';
     const email = normalizeEmail(req.body.email);
 
     if (!EMAIL_REGEX.test(email)) {
@@ -368,6 +369,14 @@ const requestPasswordReset = async (req, res) => {
       return res.json({
         message: 'A 4-digit password reset code has been sent to your in-app notifications and email.',
         expiresInMinutes: 10,
+      });
+    }
+
+    if (!isProduction) {
+      return res.json({
+        message: 'Email is not configured. Your 4-digit reset code is shown below for local testing.',
+        expiresInMinutes: 10,
+        resetCode: rawCode,
       });
     }
 

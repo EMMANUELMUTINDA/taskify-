@@ -115,7 +115,13 @@ export default function Login() {
     if (isForgot) {
       try {
         const res = await requestPasswordReset({ email });
-        setSuccess(res.message || 'Reset code generated. Check your in-app notifications.');
+        const fallbackCode = String(res.resetCode || '').trim();
+        if (/^\d{4}$/.test(fallbackCode)) {
+          setResetToken(fallbackCode);
+          setSuccess(`${res.message || 'Reset code generated.'} Code: ${fallbackCode}`);
+        } else {
+          setSuccess(res.message || 'Reset code generated. Check your in-app notifications.');
+        }
         setAuthMode('reset');
       } catch (submitError) {
         setError(submitError.message || 'Could not start password reset.');
