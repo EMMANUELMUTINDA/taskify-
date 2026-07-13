@@ -58,6 +58,14 @@
   font-weight: 700;
 }
 
+.brand-logo {
+  height: 34px;
+  width: auto;
+  object-fit: contain;
+  border-radius: 8px;
+  display: block;
+}
+
 .brand-word {
   font-family: 'Space Grotesk', sans-serif;
   font-size: 1.1rem;

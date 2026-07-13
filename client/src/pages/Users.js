@@ -7,7 +7,7 @@ export default function Users() {
   const { token } = useAuth();
   const [users, setUsers] = useState([]);
   const [showModal, setShowModal] = useState(false);
-  const [form, setForm] = useState({ name: '', email: '', password: '', role: 'Member' });
+  const [form, setForm] = useState({ name: '', email: '', password: '', role: 'Member', groupName: '' });
   const [msg, setMsg] = useState('');
   const [error, setError] = useState('');
 
@@ -24,7 +24,7 @@ export default function Users() {
     if (res.message === 'User registered successfully') {
       setMsg('User created successfully');
       setShowModal(false);
-      setForm({ name: '', email: '', password: '', role: 'Member' });
+      setForm({ name: '', email: '', password: '', role: 'Member', groupName: '' });
       getUsers(token).then(setUsers);
     } else {
       setError(res.message || 'Error creating user');
@@ -61,6 +61,7 @@ export default function Users() {
                   <th>Name</th>
                   <th>Email</th>
                   <th>Role</th>
+                  <th>Group</th>
                   <th>Status</th>
                   <th>Last Login</th>
                   <th>Joined</th>
@@ -72,6 +73,7 @@ export default function Users() {
                     <td><strong>{u.name}</strong></td>
                     <td>{u.email}</td>
                     <td><span className={`badge ${roleColor(u.role)}`}>{u.role}</span></td>
+                    <td>{u.groupName || '-'}</td>
                     <td>
                       <span className={`badge ${u.isActive ? 'badge-green' : 'badge-grey'}`}>
                         {u.isActive ? 'Active' : 'Inactive'}
@@ -83,7 +85,7 @@ export default function Users() {
                 ))}
                 {users.length === 0 && (
                   <tr>
-                    <td colSpan="6" style={{ textAlign: 'center', color: 'var(--muted)', padding: '32px' }}>
+                    <td colSpan="7" style={{ textAlign: 'center', color: 'var(--muted)', padding: '32px' }}>
                       No users yet.
                     </td>
                   </tr>
@@ -126,6 +128,17 @@ export default function Users() {
                     <option value="Supervisor">Supervisor</option>
                   </select>
                 </div>
+                {form.role !== 'Supervisor' && (
+                  <div className="form-group">
+                    <label className="form-label">Group Name</label>
+                    <input
+                      className="form-control"
+                      value={form.groupName}
+                      onChange={(e) => setForm({ ...form, groupName: e.target.value })}
+                      placeholder="e.g. BBIT-Group-7"
+                    />
+                  </div>
+                )}
                 <div style={{ display: 'flex', gap: '10px', justifyContent: 'flex-end' }}>
                   <button type="button" className="btn btn-outline"
                     onClick={() => setShowModal(false)}>Cancel</button>

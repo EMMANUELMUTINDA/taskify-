@@ -201,7 +201,19 @@ const listMessages = async (req, res) => {
 
     const [rows] = await pool.query(
       `SELECT pm.messageID, pm.projectID, pm.userID, pm.message, pm.sentAt,
-              u.name, u.role
+              u.name, u.role,
+              CASE
+                WHEN EXISTS (
+                  SELECT 1
+                  FROM activity_events ae
+                  WHERE ae.projectID = pm.projectID
+                    AND ae.userID = pm.userID
+                    AND ae.eventType = 'CommentAdded'
+                    AND ae.sourceID = pm.messageID
+                  LIMIT 1
+                ) THEN 1
+                ELSE 0
+              END AS isWorkUpdate
        FROM project_messages pm
        JOIN users u ON u.userID = pm.userID
        WHERE pm.projectID = ?
@@ -225,13 +237,14 @@ const sendMessage = async (req, res) => {
     const userId = Number(req.user.userID);
     const role = req.user.role;
     const message = String(req.body.message || '').trim();
+    const isWorkUpdate = Boolean(req.body.isWorkUpdate);
 
     if (!message) {
       return res.status(400).json({ message: 'Message cannot be empty' });
     }
 
-    if (message.length > 1000) {
-      return res.status(400).json({ message: 'Message must be 1000 characters or fewer' });
+    if (message.length > 5000) {
+      return res.status(400).json({ message: 'Message must be 5000 characters or fewer' });
     }
 
     const hasAccess = role === 'Supervisor' || (await ensureProjectMembership(projectId, userId));
@@ -245,7 +258,24 @@ const sendMessage = async (req, res) => {
       [projectId, userId, message]
     );
 
-    return res.status(201).json({ messageID: result.insertId, message: 'Message sent' });
+    const qualifiesAsContribution = isWorkUpdate || message.length >= 120;
+
+    if (qualifiesAsContribution) {
+      const scoreImpact = Math.max(2, Math.min(12, Math.round(message.length / 80)));
+      await pool.query(
+        `INSERT INTO activity_events (userID, projectID, eventType, sourceID, scoreImpact)
+         VALUES (?, ?, 'CommentAdded', ?, ?)`,
+        [userId, projectId, Number(result.insertId), scoreImpact]
+      );
+    }
+
+    return res.status(201).json({
+      messageID: result.insertId,
+      message: qualifiesAsContribution
+        ? 'Work update sent and counted toward contribution'
+        : 'Message sent',
+      countedAsContribution: qualifiesAsContribution,
+    });
   } catch (error) {
     return res.status(500).json({ message: 'Failed to send message' });
   }

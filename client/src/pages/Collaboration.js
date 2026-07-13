@@ -21,7 +21,7 @@ export default function Collaboration() {
   const [assignments, setAssignments] = useState([]);
   const [tasks, setTasks] = useState([]);
   const [messages, setMessages] = useState([]);
-  const [chatMessage, setChatMessage] = useState('');
+  const [progressUpdateMessage, setProgressUpdateMessage] = useState('');
   const [assignmentForm, setAssignmentForm] = useState({ title: '', description: '', file: null });
   const [msg, setMsg] = useState('');
   const [error, setError] = useState('');
@@ -176,21 +176,31 @@ export default function Collaboration() {
     }
   };
 
-  const handleSendMessage = async (e) => {
+  const handleUploadProgress = async (e) => {
     e.preventDefault();
     setMsg('');
     setError('');
 
-    if (!chatMessage.trim()) {
-      setError('Please type a message before sending.');
+    if (!isAdmin && !isCurrentUserMember) {
+      setError('You must be a project member to submit work updates.');
+      return;
+    }
+
+    if (!progressUpdateMessage.trim()) {
+      setError('Please type your progress update before uploading.');
       return;
     }
 
     try {
-      await sendProjectMessage(selectedProject, { message: chatMessage.trim() }, token);
+      await sendProjectMessage(
+        selectedProject,
+        { message: progressUpdateMessage.trim(), isWorkUpdate: true },
+        token
+      );
       const refreshed = await getProjectMessages(selectedProject, token);
       setMessages(refreshed);
-      setChatMessage('');
+      setProgressUpdateMessage('');
+      setMsg('Progress uploaded and contribution score will refresh on the Contributions page.');
     } catch (sendError) {
       setError(sendError.message || 'Failed to send message.');
     }
@@ -265,9 +275,9 @@ export default function Collaboration() {
       <div className="main-content">
         <div className="page-header">
           <div>
-            <div className="page-title">Collaboration</div>
+            <div className="page-title">Chats</div>
             <div className="page-sub">
-              Members can upload completed work and collaborate in project chat rooms.
+              Members can upload progress and follow project chat history.
             </div>
           </div>
           <select
@@ -348,6 +358,31 @@ export default function Collaboration() {
                 {isAdmin ? 'Upload Assignment' : 'Submit Completed Work'}
               </button>
             </form>
+
+            <div style={{ borderTop: '1px solid var(--border)', margin: '16px 0', paddingTop: '14px' }}>
+              <div className="card-title" style={{ marginBottom: '8px' }}>Upload Progress</div>
+              <div className="page-sub" style={{ marginBottom: '10px' }}>
+                Upload your progress update for this room.
+              </div>
+              <form onSubmit={handleUploadProgress}>
+                <div className="form-group">
+                  <textarea
+                    className="form-control"
+                    rows="5"
+                    placeholder="Type your progress update..."
+                    value={progressUpdateMessage}
+                    onChange={(e) => setProgressUpdateMessage(e.target.value)}
+                    disabled={!selectedProject}
+                  />
+                </div>
+                <div className="page-sub" style={{ marginBottom: '8px' }}>
+                  Current length: {progressUpdateMessage.trim().length} characters
+                </div>
+                <button type="submit" className="btn btn-primary" disabled={!selectedProject}>
+                  Upload Progress
+                </button>
+              </form>
+            </div>
 
             <div className="table-wrap">
               <table>
@@ -452,7 +487,7 @@ export default function Collaboration() {
           </div>
 
           <div className="card">
-            <div className="card-title">Project Chat</div>
+            <div className="card-title">Project Chat Timeline</div>
 
             <div
               style={{
@@ -471,6 +506,11 @@ export default function Collaboration() {
                     <strong>{message.name}</strong> ({message.role})
                     {' · '}
                     {new Date(message.sentAt).toLocaleString()}
+                    {Boolean(message.isWorkUpdate) && (
+                      <span className="badge badge-green" style={{ marginLeft: '8px' }}>
+                        Progress
+                      </span>
+                    )}
                   </div>
                   <div style={{ fontSize: '13px', color: 'var(--text)' }}>{message.message}</div>
                 </div>
@@ -479,22 +519,6 @@ export default function Collaboration() {
                 <div className="empty-text">No messages yet. Start the conversation.</div>
               )}
             </div>
-
-            <form onSubmit={handleSendMessage}>
-              <div className="form-group">
-                <textarea
-                  className="form-control"
-                  rows="3"
-                  placeholder="Type a message to your project members..."
-                  value={chatMessage}
-                  onChange={(e) => setChatMessage(e.target.value)}
-                  disabled={!selectedProject}
-                />
-              </div>
-              <button type="submit" className="btn btn-primary" disabled={!selectedProject}>
-                Send Message
-              </button>
-            </form>
 
             <div style={{ marginTop: '12px' }}>
               <div className="page-sub">Members in this room: {members.length}</div>

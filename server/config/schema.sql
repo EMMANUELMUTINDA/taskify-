@@ -7,9 +7,186 @@ CREATE TABLE IF NOT EXISTS users (
   email VARCHAR(150) NOT NULL UNIQUE,
   passwordHash VARCHAR(255) NOT NULL,
   role ENUM('Supervisor','Member','GroupLeader') NOT NULL,
+  groupName VARCHAR(80),
+  courseName VARCHAR(120),
+  course VARCHAR(100),
+  studyYear INT,
+  yearOfStudy INT,
+  classGroup VARCHAR(40),
+  unitCode VARCHAR(40),
+  profileComplete BOOLEAN DEFAULT 0,
   isActive BOOLEAN DEFAULT 1,
   createdAt DATETIME DEFAULT NOW(),
   lastLogin DATETIME
+);
+
+CREATE TABLE IF NOT EXISTS class_groups (
+  groupID INT AUTO_INCREMENT PRIMARY KEY,
+  createdBy INT NOT NULL,
+  courseName VARCHAR(120) NOT NULL,
+  studyYear INT NOT NULL,
+  unitCode VARCHAR(40) NOT NULL,
+  classGroup VARCHAR(40) NOT NULL,
+  groupName VARCHAR(220) NOT NULL,
+  createdAt DATETIME DEFAULT NOW(),
+  UNIQUE KEY uq_supervisor_group (createdBy, courseName, studyYear, unitCode, classGroup),
+  FOREIGN KEY (createdBy) REFERENCES users(userID)
+);
+
+CREATE TABLE IF NOT EXISTS unit_rooms (
+  roomID INT AUTO_INCREMENT PRIMARY KEY,
+  supervisorID INT NOT NULL,
+  unitCode VARCHAR(20) NOT NULL,
+  unitName VARCHAR(150) NOT NULL,
+  courseName VARCHAR(100) NOT NULL,
+  yearOfStudy INT NOT NULL,
+  availableGroups VARCHAR(50) NOT NULL,
+  createdAt DATETIME DEFAULT NOW(),
+  FOREIGN KEY (supervisorID) REFERENCES users(userID)
+);
+
+CREATE TABLE IF NOT EXISTS room_members (
+  membershipID INT AUTO_INCREMENT PRIMARY KEY,
+  roomID INT NOT NULL,
+  userID INT NOT NULL,
+  classGroup VARCHAR(10) NOT NULL,
+  joinedAt DATETIME DEFAULT NOW(),
+  UNIQUE KEY unique_membership (roomID, userID),
+  FOREIGN KEY (roomID) REFERENCES unit_rooms(roomID),
+  FOREIGN KEY (userID) REFERENCES users(userID)
+);
+
+CREATE TABLE IF NOT EXISTS room_messages (
+  messageID INT AUTO_INCREMENT PRIMARY KEY,
+  roomID INT NOT NULL,
+  userID INT NOT NULL,
+  message TEXT NOT NULL,
+  sentAt DATETIME DEFAULT NOW(),
+  FOREIGN KEY (roomID) REFERENCES unit_rooms(roomID),
+  FOREIGN KEY (userID) REFERENCES users(userID)
+);
+
+CREATE TABLE IF NOT EXISTS room_group_slots (
+  slotID INT AUTO_INCREMENT PRIMARY KEY,
+  roomID INT NOT NULL,
+  slotLabel VARCHAR(80) NOT NULL,
+  createdBy INT NOT NULL,
+  createdAt DATETIME DEFAULT NOW(),
+  FOREIGN KEY (roomID) REFERENCES unit_rooms(roomID),
+  FOREIGN KEY (createdBy) REFERENCES users(userID)
+);
+
+CREATE TABLE IF NOT EXISTS room_slot_members (
+  slotMemberID INT AUTO_INCREMENT PRIMARY KEY,
+  slotID INT NOT NULL,
+  roomID INT NOT NULL,
+  userID INT NOT NULL,
+  joinedAt DATETIME DEFAULT NOW(),
+  UNIQUE KEY uq_room_slot_member (slotID, userID),
+  UNIQUE KEY uq_room_member_single_slot (roomID, userID),
+  FOREIGN KEY (slotID) REFERENCES room_group_slots(slotID),
+  FOREIGN KEY (roomID) REFERENCES unit_rooms(roomID),
+  FOREIGN KEY (userID) REFERENCES users(userID)
+);
+
+CREATE TABLE IF NOT EXISTS room_work_items (
+  workID INT AUTO_INCREMENT PRIMARY KEY,
+  roomID INT NOT NULL,
+  uploadedBy INT NOT NULL,
+  title VARCHAR(200) NOT NULL,
+  description TEXT,
+  fileName VARCHAR(255) NOT NULL,
+  filePath VARCHAR(500) NOT NULL,
+  uploadedAt DATETIME DEFAULT NOW(),
+  FOREIGN KEY (roomID) REFERENCES unit_rooms(roomID),
+  FOREIGN KEY (uploadedBy) REFERENCES users(userID)
+);
+
+CREATE TABLE IF NOT EXISTS room_slot_messages (
+  messageID INT AUTO_INCREMENT PRIMARY KEY,
+  roomID INT NOT NULL,
+  slotID INT NOT NULL,
+  userID INT NOT NULL,
+  message TEXT NOT NULL,
+  sentAt DATETIME DEFAULT NOW(),
+  FOREIGN KEY (roomID) REFERENCES unit_rooms(roomID),
+  FOREIGN KEY (slotID) REFERENCES room_group_slots(slotID),
+  FOREIGN KEY (userID) REFERENCES users(userID)
+);
+
+CREATE TABLE IF NOT EXISTS room_slot_paragraphs (
+  paragraphID INT AUTO_INCREMENT PRIMARY KEY,
+  roomID INT NOT NULL,
+  slotID INT NOT NULL,
+  userID INT NOT NULL,
+  content TEXT NOT NULL,
+  wordCount INT NOT NULL DEFAULT 0,
+  contributionScore DECIMAL(6,2) NOT NULL DEFAULT 0,
+  submittedAt DATETIME DEFAULT NOW(),
+  FOREIGN KEY (roomID) REFERENCES unit_rooms(roomID),
+  FOREIGN KEY (slotID) REFERENCES room_group_slots(slotID),
+  FOREIGN KEY (userID) REFERENCES users(userID)
+);
+
+CREATE TABLE IF NOT EXISTS room_slot_final_files (
+  finalFileID INT AUTO_INCREMENT PRIMARY KEY,
+  roomID INT NOT NULL,
+  slotID INT NOT NULL,
+  uploadedBy INT NOT NULL,
+  title VARCHAR(200) NOT NULL,
+  notes TEXT,
+  fileName VARCHAR(255) NOT NULL,
+  filePath VARCHAR(500) NOT NULL,
+  markStatus ENUM('Submitted', 'Marked') DEFAULT 'Submitted',
+  markerComment TEXT,
+  markedBy INT,
+  markedAt DATETIME,
+  uploadedAt DATETIME DEFAULT NOW(),
+  FOREIGN KEY (roomID) REFERENCES unit_rooms(roomID),
+  FOREIGN KEY (slotID) REFERENCES room_group_slots(slotID),
+  FOREIGN KEY (uploadedBy) REFERENCES users(userID),
+  FOREIGN KEY (markedBy) REFERENCES users(userID)
+);
+
+CREATE TABLE IF NOT EXISTS room_slot_peer_reviews (
+  slotReviewID INT AUTO_INCREMENT PRIMARY KEY,
+  roomID INT NOT NULL,
+  slotID INT NOT NULL,
+  reviewerID INT NOT NULL,
+  reviewedUserID INT NOT NULL,
+  rating TINYINT NOT NULL,
+  comment TEXT,
+  submittedAt DATETIME DEFAULT NOW(),
+  UNIQUE KEY uq_room_slot_review (roomID, slotID, reviewerID, reviewedUserID),
+  FOREIGN KEY (roomID) REFERENCES unit_rooms(roomID),
+  FOREIGN KEY (slotID) REFERENCES room_group_slots(slotID),
+  FOREIGN KEY (reviewerID) REFERENCES users(userID),
+  FOREIGN KEY (reviewedUserID) REFERENCES users(userID)
+);
+
+CREATE TABLE IF NOT EXISTS password_resets (
+  resetID INT AUTO_INCREMENT PRIMARY KEY,
+  userID INT NOT NULL,
+  tokenHash VARCHAR(255) NOT NULL,
+  expiresAt DATETIME NOT NULL,
+  usedAt DATETIME,
+  attemptCount INT NOT NULL DEFAULT 0,
+  maxAttempts INT NOT NULL DEFAULT 5,
+  lockedUntil DATETIME,
+  createdAt DATETIME DEFAULT NOW(),
+  FOREIGN KEY (userID) REFERENCES users(userID)
+);
+
+CREATE TABLE IF NOT EXISTS user_notifications (
+  notificationID INT AUTO_INCREMENT PRIMARY KEY,
+  userID INT NOT NULL,
+  type VARCHAR(50) NOT NULL,
+  title VARCHAR(160) NOT NULL,
+  body TEXT NOT NULL,
+  isRead BOOLEAN DEFAULT 0,
+  createdAt DATETIME DEFAULT NOW(),
+  readAt DATETIME,
+  FOREIGN KEY (userID) REFERENCES users(userID)
 );
 
 CREATE TABLE IF NOT EXISTS projects (

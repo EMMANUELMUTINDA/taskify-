@@ -1,12 +1,12 @@
 import { useEffect, useState } from 'react';
 import Sidebar from '../components/Sidebar';
-import { createTask, getProjects, getTasks, getUsers, updateTaskStatus } from '../api';
+import { createTask, getProjectMembers, getProjects, getTasks, updateTaskStatus } from '../api';
 import { useAuth } from '../context/AuthContext';
 
 export default function Tasks() {
-  const { token } = useAuth();
+  const { token, user } = useAuth();
   const [projects, setProjects] = useState([]);
-  const [users, setUsers] = useState([]);
+  const [projectMembers, setProjectMembers] = useState([]);
   const [tasks, setTasks] = useState([]);
   const [selectedProject, setSelectedProject] = useState('');
   const [msg, setMsg] = useState('');
@@ -28,12 +28,34 @@ export default function Tasks() {
         if (mounted) setProjects([]);
       });
 
-    getUsers(token).then(setUsers).catch(() => setUsers([]));
-
     return () => {
       mounted = false;
     };
   }, [token]);
+
+  useEffect(() => {
+    let mounted = true;
+
+    const hydrateProjectMembers = async () => {
+      if (!selectedProject) {
+        if (mounted) setProjectMembers([]);
+        return;
+      }
+
+      try {
+        const members = await getProjectMembers(selectedProject, token);
+        if (mounted) setProjectMembers(members);
+      } catch (_error) {
+        if (mounted) setProjectMembers([]);
+      }
+    };
+
+    hydrateProjectMembers();
+
+    return () => {
+      mounted = false;
+    };
+  }, [selectedProject, token]);
 
   useEffect(() => {
     let mounted = true;
@@ -79,6 +101,16 @@ export default function Tasks() {
       return;
     }
 
+    if (!canCreateTasks) {
+      setError('You are not allowed to assign tasks in this room.');
+      return;
+    }
+
+    if (!form.assignedTo) {
+      setError('Choose a member to assign this task to.');
+      return;
+    }
+
     const payload = {
       projectID: Number(selectedProject),
       assignedTo: Number(form.assignedTo),
@@ -108,6 +140,19 @@ export default function Tasks() {
     }
   };
 
+  const selectedProjectMembership = projectMembers.find(
+    (member) => Number(member.userID) === Number(user?.userID)
+  );
+
+  const canCreateTasks =
+    user?.role === 'Supervisor' || selectedProjectMembership?.roleInProject === 'Leader';
+
+  const assignableMembers = projectMembers.filter(
+    (member) =>
+      Number(member.userID) !== Number(user?.userID) &&
+      member.role !== 'Supervisor'
+  );
+
   return (
     <div className="app-layout">
       <Sidebar />
@@ -116,6 +161,11 @@ export default function Tasks() {
           <div>
             <div className="page-title">Tasks</div>
             <div className="page-sub">Create tasks, assign owners, and update status</div>
+            {!canCreateTasks && selectedProject && (
+              <div className="page-sub" style={{ color: '#b42318', marginTop: '6px' }}>
+                You can view tasks in this room, but only supervisors, group leaders, or room leaders can assign tasks.
+              </div>
+            )}
           </div>
           <select
             className="form-control"
@@ -132,59 +182,61 @@ export default function Tasks() {
         {msg && <div className="alert-banner alert-success">Success: {msg}</div>}
         {error && <div className="alert-banner alert-danger">Warning: {error}</div>}
 
-        <div className="card">
-          <div className="card-title">Create Task</div>
-          <form onSubmit={handleCreateTask} className="review-grid">
-            <div className="form-group">
-              <label className="form-label">Task Title *</label>
-              <input
-                className="form-control"
-                value={form.title}
-                onChange={(e) => setForm({ ...form, title: e.target.value })}
-                required
-              />
-            </div>
-            <div className="form-group">
-              <label className="form-label">Assign To *</label>
-              <select
-                className="form-control"
-                value={form.assignedTo}
-                onChange={(e) => setForm({ ...form, assignedTo: e.target.value })}
-                required
-              >
-                <option value="">Choose member</option>
-                {users.map((u) => (
-                  <option key={u.userID} value={u.userID}>{u.name}</option>
-                ))}
-              </select>
-            </div>
-            <div className="form-group">
-              <label className="form-label">Initial Status</label>
-              <select
-                className="form-control"
-                value={form.status}
-                onChange={(e) => setForm({ ...form, status: e.target.value })}
-              >
-                <option value="Todo">Todo</option>
-                <option value="InProgress">In Progress</option>
-                <option value="Done">Done</option>
-                <option value="Backlog">Backlog</option>
-              </select>
-            </div>
-            <div className="form-group">
-              <label className="form-label">Deadline</label>
-              <input
-                type="date"
-                className="form-control"
-                value={form.deadline}
-                onChange={(e) => setForm({ ...form, deadline: e.target.value })}
-              />
-            </div>
-            <div>
-              <button className="btn btn-primary" type="submit">Create Task</button>
-            </div>
-          </form>
-        </div>
+        {canCreateTasks && (
+          <div className="card">
+            <div className="card-title">Create Task</div>
+            <form onSubmit={handleCreateTask} className="review-grid">
+              <div className="form-group">
+                <label className="form-label">Task Title *</label>
+                <input
+                  className="form-control"
+                  value={form.title}
+                  onChange={(e) => setForm({ ...form, title: e.target.value })}
+                  required
+                />
+              </div>
+              <div className="form-group">
+                <label className="form-label">Assign To *</label>
+                <select
+                  className="form-control"
+                  value={form.assignedTo}
+                  onChange={(e) => setForm({ ...form, assignedTo: e.target.value })}
+                  required
+                >
+                  <option value="">Choose member</option>
+                  {assignableMembers.map((member) => (
+                    <option key={member.userID} value={member.userID}>{member.name}</option>
+                  ))}
+                </select>
+              </div>
+              <div className="form-group">
+                <label className="form-label">Initial Status</label>
+                <select
+                  className="form-control"
+                  value={form.status}
+                  onChange={(e) => setForm({ ...form, status: e.target.value })}
+                >
+                  <option value="Todo">Todo</option>
+                  <option value="InProgress">In Progress</option>
+                  <option value="Done">Done</option>
+                  <option value="Backlog">Backlog</option>
+                </select>
+              </div>
+              <div className="form-group">
+                <label className="form-label">Deadline</label>
+                <input
+                  type="date"
+                  className="form-control"
+                  value={form.deadline}
+                  onChange={(e) => setForm({ ...form, deadline: e.target.value })}
+                />
+              </div>
+              <div>
+                <button className="btn btn-primary" type="submit">Create Task</button>
+              </div>
+            </form>
+          </div>
+        )}
 
         <div className="card">
           <div className="card-title">Task List</div>
@@ -203,7 +255,7 @@ export default function Tasks() {
                 {tasks.map((task) => (
                   <tr key={task.taskID}>
                     <td>{task.title}</td>
-                    <td>{users.find((u) => Number(u.userID) === Number(task.assignedTo))?.name || `User #${task.assignedTo}`}</td>
+                    <td>{projectMembers.find((m) => Number(m.userID) === Number(task.assignedTo))?.name || `User #${task.assignedTo}`}</td>
                     <td>
                       <select
                         className="form-control"

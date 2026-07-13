@@ -1,18 +1,28 @@
 import { useEffect, useMemo, useState } from 'react';
 import Sidebar from '../components/Sidebar';
-import { getProjects, getProjectOverview } from '../api';
+import { getProjects, getProjectOverview, getJoinedRooms } from '../api';
 import { useAuth } from '../context/AuthContext';
 
 export default function Dashboard() {
-  const { token } = useAuth();
+  const { token, user } = useAuth();
   const [projects, setProjects] = useState([]);
+  const [joinedRooms, setJoinedRooms] = useState([]);
   const [overviewRows, setOverviewRows] = useState([]);
+  const isStudentView = user?.role === 'Member' || user?.role === 'GroupLeader';
 
   useEffect(() => {
     let mounted = true;
 
     const loadData = async () => {
       try {
+        if (isStudentView) {
+          const nextRooms = await getJoinedRooms(token);
+          if (!mounted) return;
+          setJoinedRooms(nextRooms);
+        } else {
+          setJoinedRooms([]);
+        }
+
         const nextProjects = await getProjects(token);
         if (!mounted) return;
         setProjects(nextProjects);
@@ -38,6 +48,7 @@ export default function Dashboard() {
         setOverviewRows(overview);
       } catch (_error) {
         if (mounted) {
+          setJoinedRooms([]);
           setProjects([]);
           setOverviewRows([]);
         }
@@ -49,7 +60,7 @@ export default function Dashboard() {
     return () => {
       mounted = false;
     };
-  }, [token]);
+  }, [token, isStudentView]);
 
   const metrics = useMemo(() => {
     const totalProjects = overviewRows.length;
@@ -72,6 +83,29 @@ export default function Dashboard() {
             <div className="page-sub">Live system overview from your backend data</div>
           </div>
         </div>
+
+        {isStudentView && (
+          <div className="card">
+            <div className="card-title">My Allocation Status</div>
+            <div className="page-sub" style={{ marginBottom: '10px' }}>
+              Group: {user?.groupName || 'Not set yet'}
+            </div>
+            <div className="page-sub" style={{ marginBottom: '10px' }}>
+              Rooms allocated to me: {joinedRooms.length}
+            </div>
+            {joinedRooms.length > 0 ? (
+              <ul style={{ margin: 0, paddingLeft: '18px', color: 'var(--text)' }}>
+                {joinedRooms.map((room) => (
+                  <li key={room.roomID}>{room.unitCode} - {room.unitName}</li>
+                ))}
+              </ul>
+            ) : (
+              <div className="alert-banner alert-warning" style={{ marginBottom: 0 }}>
+                You are logged in, but no room has been allocated to your account yet.
+              </div>
+            )}
+          </div>
+        )}
 
         <div className="stats-grid">
           <div className="stat-card">
@@ -118,7 +152,9 @@ export default function Dashboard() {
                 {projects.length === 0 && (
                   <tr>
                     <td colSpan="5" style={{ textAlign: 'center', color: 'var(--muted)', padding: '24px' }}>
-                      No projects found yet.
+                      {user?.role === 'Supervisor'
+                        ? 'Your dashboard is clear. Create your first room to start tracking group activity.'
+                        : 'No rooms are assigned to you yet.'}
                     </td>
                   </tr>
                 )}

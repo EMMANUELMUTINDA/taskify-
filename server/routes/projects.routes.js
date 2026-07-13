@@ -4,6 +4,7 @@ const {
   listProjects,
   getProjectById,
   addProjectMember,
+  allocateGroupToProject,
   listProjectMembers,
 } = require('../controllers/projects.controller');
 const { requireSupervisor } = require('../middleware/auth.middleware');
@@ -14,6 +15,7 @@ router.post('/', requireSupervisor, createProject);
 router.get('/', listProjects);
 router.get('/:projectId', getProjectById);
 router.post('/:projectId/members', requireSupervisor, addProjectMember);
+router.post('/:projectId/allocate-group', requireSupervisor, allocateGroupToProject);
 router.get('/:projectId/members', listProjectMembers);
 
 module.exports = router;

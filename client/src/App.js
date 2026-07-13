@@ -3,13 +3,14 @@ import { AuthProvider, useAuth } from './context/AuthContext';
 import Login from './pages/Login';
 import Home from './pages/Home';
 import Dashboard from './pages/Dashboard';
-import Projects from './pages/Projects';
-import Tasks from './pages/Tasks';
 import Contributions from './pages/Contributions';
 import PeerReview from './pages/PeerReview';
-import Collaboration from './pages/Collaboration';
-import Alerts from './pages/Alerts';
+import Notifications from './pages/Notifications';
 import Users from './pages/Users';
+import ProfileSetup from './pages/ProfileSetup';
+import Units from './pages/Units';
+import RoomWorkspace from './pages/RoomWorkspace';
+import RoomManager from './pages/RoomManager';
 import './styles/main.css';
 
 const PrivateRoute = ({ children }) => {
@@ -18,7 +19,7 @@ const PrivateRoute = ({ children }) => {
   return user ? children : <Navigate to="/login" />;
 };
 
-const SupervisorRoute = ({ children }) => {
+const AdminRoute = ({ children }) => {
   const { user, loading } = useAuth();
   if (loading) return null;
   if (!user) return <Navigate to="/login" />;
@@ -28,14 +29,11 @@ const SupervisorRoute = ({ children }) => {
   return children;
 };
 
-const ProjectManagerRoute = ({ children }) => {
+const UnitRoomsEntry = () => {
   const { user, loading } = useAuth();
   if (loading) return null;
   if (!user) return <Navigate to="/login" />;
-  if (user.role === 'Member') {
-    return <Navigate to="/dashboard" />;
-  }
-  return children;
+  return user.role === 'Supervisor' ? <RoomManager /> : <Units />;
 };
 
 function App() {
@@ -46,13 +44,19 @@ function App() {
           <Route path="/" element={<Home />} />
           <Route path="/login" element={<Login />} />
           <Route path="/dashboard" element={<PrivateRoute><Dashboard /></PrivateRoute>} />
-          <Route path="/projects" element={<ProjectManagerRoute><Projects /></ProjectManagerRoute>} />
-          <Route path="/tasks" element={<ProjectManagerRoute><Tasks /></ProjectManagerRoute>} />
+          <Route path="/projects" element={<PrivateRoute><Navigate to="/units" replace /></PrivateRoute>} />
+          <Route path="/tasks" element={<PrivateRoute><Navigate to="/dashboard" replace /></PrivateRoute>} />
           <Route path="/contributions" element={<PrivateRoute><Contributions /></PrivateRoute>} />
           <Route path="/peer-review" element={<PrivateRoute><PeerReview /></PrivateRoute>} />
-          <Route path="/collaboration" element={<PrivateRoute><Collaboration /></PrivateRoute>} />
-          <Route path="/alerts" element={<PrivateRoute><Alerts /></PrivateRoute>} />
-          <Route path="/users" element={<SupervisorRoute><Users /></SupervisorRoute>} />
+          <Route path="/notifications" element={<PrivateRoute><Notifications /></PrivateRoute>} />
+          <Route path="/collaboration" element={<PrivateRoute><Navigate to="/room-workspace" replace /></PrivateRoute>} />
+          <Route path="/room-workspace" element={<PrivateRoute><RoomWorkspace /></PrivateRoute>} />
+          <Route path="/assignments" element={<PrivateRoute><Navigate to="/dashboard" replace /></PrivateRoute>} />
+          <Route path="/alerts" element={<PrivateRoute><Navigate to="/contributions" replace /></PrivateRoute>} />
+          <Route path="/profile-setup" element={<PrivateRoute><ProfileSetup /></PrivateRoute>} />
+          <Route path="/units" element={<PrivateRoute><UnitRoomsEntry /></PrivateRoute>} />
+          <Route path="/rooms" element={<AdminRoute><Navigate to="/units" replace /></AdminRoute>} />
+          <Route path="/users" element={<AdminRoute><Users /></AdminRoute>} />
         </Routes>
       </BrowserRouter>
     </AuthProvider>

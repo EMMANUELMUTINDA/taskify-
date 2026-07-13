@@ -1,14 +1,49 @@
 import { useNavigate } from 'react-router-dom';
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
+import { getJoinedRooms, getMyRooms } from '../api';
+import { useAuth } from '../context/AuthContext';
 import '../styles/home.css';
 
 export default function Home() {
   const navigate = useNavigate();
   const rollRef = useRef(null);
+  const { token, user, logout } = useAuth();
+  const [allocatedRooms, setAllocatedRooms] = useState([]);
+  const isStudentView = user?.role === 'Member' || user?.role === 'GroupLeader';
 
   useEffect(() => {
     document.title = 'Taskify - Who actually did the work';
   }, []);
+
+  useEffect(() => {
+    let mounted = true;
+
+    const hydrateAllocations = async () => {
+      if (!token) {
+        if (mounted) {
+          setAllocatedRooms([]);
+        }
+        return;
+      }
+
+      try {
+        const rooms = isStudentView ? await getJoinedRooms(token) : await getMyRooms(token);
+        if (mounted) {
+          setAllocatedRooms(rooms);
+        }
+      } catch (_error) {
+        if (mounted) {
+          setAllocatedRooms([]);
+        }
+      }
+    };
+
+    hydrateAllocations();
+
+    return () => {
+      mounted = false;
+    };
+  }, [token, isStudentView]);
 
   const rollCall = [
     { name: 'A. Wanjiru', task: 'API integration', status: 'done' },
@@ -24,7 +59,7 @@ export default function Home() {
       <header className="home-nav">
         <div className="home-nav-inner">
           <div className="home-brand">
-            <span className="brand-mark">T</span>
+            <img src="/logo_sidebar.jpeg" alt="Taskify logo" className="brand-logo" />
             <span className="brand-word">Taskify</span>
           </div>
           <nav className="home-nav-links">
@@ -32,12 +67,61 @@ export default function Home() {
             <a href="#ledger">The ledger</a>
             <a href="#trust">Why it is fair</a>
           </nav>
-          <div className="home-nav-actions">
-            <button className="ghost-btn" onClick={() => navigate('/login')}>Sign in</button>
-            <button className="solid-btn" onClick={() => navigate('/login')}>Get started</button>
-          </div>
+          {!user ? (
+            <div className="home-nav-actions">
+              <button className="ghost-btn" onClick={() => navigate('/login')}>Sign in</button>
+              <button className="solid-btn" onClick={() => navigate('/login')}>Get started</button>
+            </div>
+          ) : (
+            <div className="home-nav-actions">
+              <button className="ghost-btn" onClick={() => navigate('/dashboard')}>Dashboard</button>
+              <button
+                className="solid-btn"
+                onClick={() => {
+                  logout();
+                  navigate('/login');
+                }}
+              >
+                Sign out
+              </button>
+            </div>
+          )}
         </div>
       </header>
+
+      {user && (
+        <section style={{ padding: '16px 20px 0' }}>
+          <div className="card" style={{ marginBottom: 0 }}>
+            <div className="card-title">My Allocation Status</div>
+            <div className="page-sub" style={{ marginBottom: '8px' }}>
+              Group: {user.groupName || 'Not set yet'}
+            </div>
+            <div className="page-sub" style={{ marginBottom: '10px' }}>
+              {isStudentView ? 'Rooms allocated' : 'Rooms created'}: {allocatedRooms.length}
+            </div>
+            {allocatedRooms.length > 0 ? (
+              <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+                {allocatedRooms.slice(0, 6).map((room) => (
+                  <span key={room.roomID} className="badge badge-blue">
+                    {room.unitCode} - {room.unitName}
+                  </span>
+                ))}
+              </div>
+            ) : (
+              <div className="alert-banner alert-warning" style={{ marginBottom: 0 }}>
+                {isStudentView
+                  ? 'You are logged in, but no room has been allocated to your account yet.'
+                  : 'You are logged in, but you have not created any rooms yet.'}
+              </div>
+            )}
+            <div style={{ marginTop: '12px' }}>
+              <button className="btn btn-primary" onClick={() => navigate('/dashboard')}>
+                Open Dashboard
+              </button>
+            </div>
+          </div>
+        </section>
+      )}
 
       <section className="hero" id="ledger">
         <div className="hero-paper" />
@@ -56,9 +140,15 @@ export default function Home() {
               they happen so when grading time comes, nobody has to guess who carried the project.
             </p>
             <div className="hero-actions">
-              <button className="solid-btn lg" onClick={() => navigate('/login')}>
-                Start a project
-              </button>
+              {!user ? (
+                <button className="solid-btn lg" onClick={() => navigate('/login')}>
+                  Start a project
+                </button>
+              ) : (
+                <button className="solid-btn lg" onClick={() => navigate('/dashboard')}>
+                  Open dashboard
+                </button>
+              )}
               <a href="#ledger" className="text-link">See the ledger</a>
             </div>
           </div>
@@ -140,7 +230,6 @@ export default function Home() {
           </div>
           <div className="trust-quote">
             <p>"I finally had proof I did 80% of the work, not just a feeling."</p>
-            <span>- Final year BBIT student, Strathmore University</span>
           </div>
         </div>
       </section>
@@ -153,7 +242,7 @@ export default function Home() {
       </section>
 
       <footer className="home-footer">
-        <span>Taskify - Built for Strathmore University, School of Computing and Engineering Sciences</span>
+        <span>Taskify - Built for Strathmore University</span>
       </footer>
     </div>
   );
